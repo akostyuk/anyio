@@ -938,7 +938,7 @@ _threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
-
+_threadpool_worker_class: RunVar[WorkerThread] = RunVar("_threadpool_worker_class")
 
 class BlockingPortal(abc.BlockingPortal):
     def __new__(cls) -> BlockingPortal:
@@ -2357,6 +2357,7 @@ class AsyncIOBackend(AsyncBackend):
 
         # If this is the first run in this event loop thread, set up the necessary
         # variables
+        worker_class = _threadpool_worker_class.get(WorkerThread)
         try:
             idle_workers = _threadpool_idle_workers.get()
             workers = _threadpool_workers.get()
@@ -2371,7 +2372,7 @@ class AsyncIOBackend(AsyncBackend):
                 future: asyncio.Future = asyncio.Future()
                 root_task = find_root_task()
                 if not idle_workers:
-                    worker = WorkerThread(root_task, workers, idle_workers)
+                    worker = worker_class(root_task, workers, idle_workers)
                     worker.start()
                     workers.add(worker)
                     root_task.add_done_callback(worker.stop)
@@ -2384,7 +2385,7 @@ class AsyncIOBackend(AsyncBackend):
                     while idle_workers:
                         if (
                             now - idle_workers[0].idle_since
-                            < WorkerThread.MAX_IDLE_TIME
+                            < worker_class.MAX_IDLE_TIME
                         ):
                             break
 
